@@ -3,10 +3,13 @@
 #include <mutex>
 #include <queue>
 #include <cstdlib>      // rand
+#include <condition_variable>
+#include <ostream>
 
 namespace {
     std::queue<int> queue_;
     std::mutex      mutex_;
+    std::condition_variable cond_;
 }
 
 void add_to_queue(int v)
@@ -27,9 +30,10 @@ void prod()
     {
         int r = rand() % 1001 + 1000;
         add_to_queue(r);
-
+	//cond_.notify_one();
         // Bloque le fil pour 50 ms:
         std::this_thread::sleep_for(std::chrono::milliseconds(50));
+    	cond_.notify_one();
     }
 
     add_to_queue(0);
@@ -39,15 +43,23 @@ void cons()
 {
     while (true)
     {
-        std::lock_guard<std::mutex> lock(mutex_);
-        // On doit toujours vérifier si un objet std::queue n'est pas vide
-        // avant de retirer un élément.
-        if (!queue_.empty()) {
-            int v = queue_.front(); // Copie le premier élément de la queue.
-            queue_.pop();           // Retire le premier élément.
+	//std::this_thread::sleep_for(std::chrono::milliseconds(10));
+	
+	//std::cout << "size " << queue_.size() << std::endl;
+	std::unique_lock<std::mutex> lock(mutex_);
+        cond_.wait(
+	    lock, []{return !queue_.empty();}
+	);
+	
 
-            printf("Reçu: %d\n", v);
-        }
+	// On doit toujours vérifier si un objet std::queue n'est pas vide
+        // avant de retirer un élément.
+        //if (!queue_.empty()) {
+        int v = queue_.front(); // Copie le premier élément de la queue.
+        queue_.pop();           // Retire le premier élément.
+	lock.unlock();	
+        printf("Reçu: %d\n", v);
+        //}
     }
 
 }
