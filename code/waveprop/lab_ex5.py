@@ -39,23 +39,23 @@ q1      = data1D[:]
 q1_rep  = data1D
 
 # Q2 - Les trois premiers éléments du vecteur 1D
-q2      = data1D[:]
+q2      = data1D[0:3]
 q2_rep  = np.array([1,2,3])
 
 # Q3 - Les deux derniers éléments du vecteur 1D
-q3      = data1D[:]
+q3      = data1D[-2:len(data1D)]
 q3_rep  = np.array([4,5])
 
 # Q4 - L'élément (2,3) de la matrice 2D (attention: 1 est le premier élément)
-q4      = data2D[:]
+q4      = data2D[1][2]
 q4_rep  = 8
 
 # Q5 - La dernière colonne de la matrice 2D, en utilisant un indice négatif
-q5      = data2D[:]
+q5      = data2D[:, -1]
 q5_rep  = np.array([5, 10, 15, 20, 25])
 
 # Q6 - La couche inférieure du cube 2x2x2
-q6      = data3D[:]
+q6      = data3D[-1, :,:]
 q6_rep  = np.array([[5,6], [7,8]])
 
 # Q7 - Dans la première rangée de la matrice 2D, la soustraction des éléments 2-5 et 1-4,
