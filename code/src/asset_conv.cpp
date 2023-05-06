@@ -19,7 +19,7 @@ namespace gif643 {
 
 const size_t    BPP         = 4;    // Bytes per pixel
 const float     ORG_WIDTH   = 48.0; // Original SVG image width in px.
-const int       NUM_THREADS = 1;    // Default value, changed by argv. 
+const int       NUM_THREADS = 4;    // Default value, changed by argv. 
 
 using PNGDataVec = std::vector<char>;
 using PNGDataPtr = std::shared_ptr<PNGDataVec>;
@@ -126,6 +126,8 @@ public:
 
     void operator()()
     {
+        std::lock_guard<std::mutex> lock(mutex_);
+
         const std::string&  fname_in    = task_def_.fname_in;
         const std::string&  fname_out   = task_def_.fname_out;
         const size_t&       width       = task_def_.size; 
@@ -246,11 +248,16 @@ public:
                 std::thread(&Processor::processQueue, this)
             );
         }
+        
     }
 
     ~Processor()
     {
+        std::cout << "~Processor\n";
         should_run_ = false;
+        
+        cond_.notify_all();
+
         for (auto& qthread: queue_threads_) {
             qthread.join();
         }
@@ -293,6 +300,11 @@ public:
             return true;
     }
 
+    int queueSize() {
+        return task_queue_.size();
+    }
+
+
     /// \brief Tries to parse the given task definition and run it.
     ///
     /// The parsing method will output error messages if it is not valid. 
@@ -316,6 +328,8 @@ public:
         TaskDef def;
         if (parse(line_org, def)) {
             std::cerr << "Queueing task '" << line_org << "'." << std::endl;
+            std::lock_guard<std::mutex> lock(mutex_);
+            std::cout << "prod " << std::this_thread::get_id() << std::endl;
             task_queue_.push(def);
             cond_.notify_one();
         }
@@ -333,16 +347,23 @@ private:
     {
         while (should_run_) {
             std::unique_lock<std::mutex> lock(mutex_);
+            std::cout << "wait to consume " << std::this_thread::get_id() << std::endl;
+
             cond_.wait(
-                lock, [this] { return !task_queue_.empty(); }
+                lock, [this] { return !task_queue_.empty() || !should_run_; }
             );
 
-            // if (!task_queue_.empty()) { // wait
+            if (task_queue_.empty()) break;
 
             TaskDef task_def = task_queue_.front();
             task_queue_.pop();
+            lock.unlock();
+
             TaskRunner runner(task_def);
             runner();
+
+            std::cout << "Cons " << std::this_thread::get_id() << std::endl;
+
             // }
         }
     }
@@ -384,10 +405,14 @@ int main(int argc, char** argv)
         }
     }
 
+
     if (file_in.is_open()) {
         file_in.close();
     }
 
     // Wait until the processor queue's has tasks to do.
-    while (!proc.queueEmpty()) {};
+    while (!proc.queueEmpty()) {
+        std::cout << "queue size " << proc.queueSize() << std::endl;
+    };
+    std::cout << "end queue size " << proc.queueSize() << std::endl;
 }
