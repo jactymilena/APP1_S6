@@ -43,23 +43,23 @@ void cons()
 {
     while (true)
     {
-	//std::this_thread::sleep_for(std::chrono::milliseconds(10));
-	
-	//std::cout << "size " << queue_.size() << std::endl;
-	std::unique_lock<std::mutex> lock(mutex_);
-        cond_.wait(
-	    lock, []{return !queue_.empty();}
-	);
-	
+        //std::this_thread::sleep_for(std::chrono::milliseconds(10));
+        
+        //std::cout << "size " << queue_.size() << std::endl;
+        std::unique_lock<std::mutex> lock(mutex_);
+            cond_.wait(
+            lock, []{return !queue_.empty();}
+        );
+        
 
-	// On doit toujours vérifier si un objet std::queue n'est pas vide
-        // avant de retirer un élément.
-        //if (!queue_.empty()) {
+        // On doit toujours vérifier si un objet std::queue n'est pas vide
+            // avant de retirer un élément.
+            //if (!queue_.empty()) {
         int v = queue_.front(); // Copie le premier élément de la queue.
         queue_.pop();           // Retire le premier élément.
-	lock.unlock();	
+        lock.unlock();	
         printf("Reçu: %d\n", v);
-        //}
+            //}
     }
 
 }
