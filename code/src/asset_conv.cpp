@@ -12,6 +12,8 @@
 #include <string>
 #include <cstring>
 #include <thread>
+#include <condition_variable>
+#include <mutex>
 
 namespace gif643 {
 
@@ -21,6 +23,9 @@ const int       NUM_THREADS = 1;    // Default value, changed by argv.
 
 using PNGDataVec = std::vector<char>;
 using PNGDataPtr = std::shared_ptr<PNGDataVec>;
+
+std::mutex      mutex_;
+std::condition_variable cond_;
 
 /// \brief Wraps callbacks from stbi_image_write
 //
@@ -305,13 +310,14 @@ public:
     ///
     /// If the definition is invalid, error messages are sent to stderr and 
     /// nothing is queued.
-    void parseAndQueue(const std::string& line_org)
+    void parseAndQueue(const std::string& line_org) // producteur
     {
         std::queue<TaskDef> queue;
         TaskDef def;
         if (parse(line_org, def)) {
             std::cerr << "Queueing task '" << line_org << "'." << std::endl;
             task_queue_.push(def);
+            cond_.notify_one();
         }
     }
 
@@ -323,15 +329,21 @@ public:
 
 private:
     /// \brief Queue processing thread function.
-    void processQueue()
+    void processQueue() // consommateur 
     {
         while (should_run_) {
-            if (!task_queue_.empty()) {
-                TaskDef task_def = task_queue_.front();
-                task_queue_.pop();
-                TaskRunner runner(task_def);
-                runner();
-            }
+            std::unique_lock<std::mutex> lock(mutex_);
+            cond_.wait(
+                lock, [this] { return !task_queue_.empty(); }
+            );
+
+            // if (!task_queue_.empty()) { // wait
+
+            TaskDef task_def = task_queue_.front();
+            task_queue_.pop();
+            TaskRunner runner(task_def);
+            runner();
+            // }
         }
     }
 };
@@ -368,7 +380,7 @@ int main(int argc, char** argv)
 
         std::getline(std::cin, line);
         if (!line.empty()) {
-            proc.parseAndQueue(line); // producteur
+            proc.parseAndQueue(line);
         }
     }
 
