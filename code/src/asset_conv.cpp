@@ -117,6 +117,9 @@ class TaskRunner
 {
 private:
     TaskDef task_def_;
+    std::mutex      runner_mutex_;
+
+    using PNGHashMap = std::unordered_map<std::string, PNGDataPtr>;
 
 public:
     TaskRunner(const TaskDef& task_def):
@@ -124,9 +127,13 @@ public:
     {
     }
 
-    void operator()()
-    {
-        std::lock_guard<std::mutex> lock(mutex_);
+    void operator()(PNGHashMap png_cache)
+    {   
+        // using PNGHashMap = std::unordered_map<std::string, PNGDataPtr>;
+        // PNGHashMap png_cache_;
+        // std::unique_lock<std::mutex> lock(runner_mutex_);
+        std::unique_lock<std::mutex> lock(mutex_);
+
 
         const std::string&  fname_in    = task_def_.fname_in;
         const std::string&  fname_out   = task_def_.fname_out;
@@ -145,34 +152,47 @@ public:
         NSVGrasterizer*     rast            = nullptr;
 
         try {
-            // Read the file ...
-            image_in = nsvgParseFromFile(fname_in.c_str(), "px", 0);
-            if (image_in == nullptr) {
-                std::string msg = "Cannot parse '" + fname_in + "'.";
-                throw std::runtime_error(msg.c_str());
+            // std::unique_lock<std::mutex> lock(runner_mutex_);
+
+            if(png_cache.find(fname_in) != png_cache.end()) {
+                // Already on cache
+
+                // Write it out ...
+                std::ofstream file_out(fname_out, std::ofstream::binary);
+                auto data = png_cache[fname_in];
+                file_out.write(&(data->front()), data->size());
+
+            } else {
+                // Read the file ...
+                image_in = nsvgParseFromFile(fname_in.c_str(), "px", 0);
+                if (image_in == nullptr) {
+                    std::string msg = "Cannot parse '" + fname_in + "'.";
+                    throw std::runtime_error(msg.c_str());
+                }
+
+                // Raster it ...
+                std::vector<unsigned char> image_data(image_size, 0);
+                rast = nsvgCreateRasterizer();
+                nsvgRasterize(rast,
+                            image_in,
+                            0,
+                            0,
+                            scale,
+                            &image_data[0],
+                            width,
+                            height,
+                            stride); 
+
+                // Compress it ...
+                PNGWriter writer;
+                writer(width, height, BPP, &image_data[0], stride);
+
+                // Write it out ...
+                std::ofstream file_out(fname_out, std::ofstream::binary);
+                auto data = writer.getData();
+                file_out.write(&(data->front()), data->size());
+                png_cache[fname_in] = data;
             }
-
-            // Raster it ...
-            std::vector<unsigned char> image_data(image_size, 0);
-            rast = nsvgCreateRasterizer();
-            nsvgRasterize(rast,
-                          image_in,
-                          0,
-                          0,
-                          scale,
-                          &image_data[0],
-                          width,
-                          height,
-                          stride); 
-
-            // Compress it ...
-            PNGWriter writer;
-            writer(width, height, BPP, &image_data[0], stride);
-
-            // Write it out ...
-            std::ofstream file_out(fname_out, std::ofstream::binary);
-            auto data = writer.getData();
-            file_out.write(&(data->front()), data->size());
             
         } catch (std::runtime_error e) {
             std::cerr << "Exception while processing "
@@ -191,6 +211,7 @@ public:
                   << fname_in 
                   << "." 
                   << std::endl;
+        
     }
 };
 
@@ -314,7 +335,7 @@ public:
         TaskDef def;
         if (parse(line_org, def)) {
             TaskRunner runner(def);
-            runner();
+            runner(png_cache_);
         }
     }
 
@@ -360,7 +381,9 @@ private:
             lock.unlock();
 
             TaskRunner runner(task_def);
-            runner();
+            runner(png_cache_);
+
+            // task_def_.fname_in; add fname_in as string key and runner return value as map value
 
             std::cout << "Cons " << std::this_thread::get_id() << std::endl;
 
