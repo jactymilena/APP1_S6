@@ -1,9 +1,3 @@
-// GIF642 - Laboratoire - Mémoire partagée inter-processus
-// Prépare un espace mémoire partagé et accessible depuis un script Python.
-// La synchronisation est effectuée par envoi/réception de messages sur
-// stdin/out.
-// Messages de diagnostic sur stderr.
-// Voir le script associé "waveprop/lab1_ex4.py".
 #include <iostream>
 #include <sys/shm.h>
 #include <sys/mman.h>
@@ -13,12 +7,21 @@
 #include <errno.h>
 #include <unistd.h>
 #include <string.h>
+#include <vector>
 
 // Taille de la matrice de travail (un côté)
-static const int MATRIX_SIZE = 4;
-static const int BUFFER_SIZE = MATRIX_SIZE * MATRIX_SIZE * sizeof(double);
+static const int N = 100;
+static const int M = 100;
+static const int K = 100;
+static const int L = 3;
+
+static const int BUFFER_SIZE = N * M * K * L * sizeof(double);
 // Tampon générique à utiliser pour créer le fichier
+
+// std::vector<char> buffer_[BUFFER_SIZE];
+
 char buffer_[BUFFER_SIZE];
+
 
 void wait_signal()
 {
@@ -34,19 +37,40 @@ void ack_signal()
     std::cout << "" << std::endl;
 }
 
-int main(int argc, char** argv)
+// char get_4dmatrix_element(int i, int j, int k, int l) 
+// {
+//     return buffer_[(M*N*K) * i + (M*N) * j + M* k + l];
+// }
+
+void slice() 
 {
+
+
+}
+
+void curl(double* mtx)
+{
+
+}
+
+int main(int argc, char const *argv[])
+{
+
     if (argc < 2)
     {
         std::cerr << "Error : no shared file provided as argv[1]" << std::endl;
         return -1;
     }
 
-    wait_signal();
+    // wait_signal();
 
     // Création d'un fichier "vide" (le fichier doit exister et être d'une
     // taille suffisante avant d'utiliser mmap).
-    memset(buffer_, 0, BUFFER_SIZE);            // sets all values to zero
+    memset(buffer_, 0, BUFFER_SIZE);     // sets all values to zero
+    // std::fill(buffer_->begin(), buffer_->end(), 0);
+    // v2 = std::vector<int>(v1.begin() + 1, v1.end()); slicing
+    // auto v = std::vector<int>(buffer_->begin() + 1, buffer_->end()); ;
+
     FILE* shm_f = fopen(argv[1], "w");              
     fwrite(buffer_, sizeof(char), BUFFER_SIZE, shm_f); // writes file with zeros
     fclose(shm_f);
@@ -70,17 +94,11 @@ int main(int argc, char** argv)
     // Pointeur format double qui représente la matrice partagée:
     double* mtx = (double*)shm_mmap;
 
-    while (true) {
+    while(true) {
         // On attend le signal du parent.
         wait_signal();
-        std::cerr << "CPP: Will add 1.0 to all items" << std::endl;
-        // On fait le travail.
-        for (int i = 0; i < MATRIX_SIZE; ++i) {
-            for (int j = 0; j < MATRIX_SIZE; ++j) {
-                // Rangée i, colonne j, tableau plat
-                mtx[i*MATRIX_SIZE + j] += 1.0;
-            }
-        }
+        std::cerr << "CPP: Will curl E" << std::endl;
+        curl(mtx);
         // On signale que le travail est terminé.
         std::cerr << "CPP: Work done." << std::endl;
         ack_signal();

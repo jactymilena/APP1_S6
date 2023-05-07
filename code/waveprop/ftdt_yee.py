@@ -1,9 +1,31 @@
 # GPL3, Copyright (c) Max Hofheinz, UdeS, 2021
 
-import numpy, fiddle
+import numpy, fiddle, mmap
+from subprocess import Popen, PIPE
+
+
+FNAME = "GIF642-prob-shm"
+
+def subp():
+    subproc = Popen(["./ftdt_yee", FNAME], stdin=PIPE, stdout=PIPE)
+    return subproc
+
+
+def signal_and_wait(subproc):
+    subproc.stdin.write("START\n".encode())
+    subproc.stdin.flush()                   # Nécessaire pour vider le tampon de sortie
+    res = subproc.stdout.readline()
+
+# Notes : partir deux process cpp qui vont curl
 
 def curl_E(E):
     curl_E = numpy.zeros(E.shape)
+    print('E')
+    print(E.shape)
+
+    # print('E')
+    # print(E)
+
     curl_E[:, :-1, :, 0] += E[:, 1:, :, 2] - E[:, :-1, :, 2]
     curl_E[:, :, :-1, 0] -= E[:, :, 1:, 1] - E[:, :, :-1, 1]
 
@@ -12,10 +34,17 @@ def curl_E(E):
 
     curl_E[:-1, :, :, 2] += E[1:, :, :, 1] - E[:-1, :, :, 1]
     curl_E[:, :-1, :, 2] -= E[:, 1:, :, 0] - E[:, :-1, :, 0]
+
+    # print('apres curl_E')
+    # print(curl_E)
     return curl_E
+
 
 def curl_H(H):
     curl_H = numpy.zeros(H.shape)
+    print('H')
+    print(H.shape)
+
 
     curl_H[:,1:,:,0] += H[:,1:,:,2] - H[:,:-1,:,2]
     curl_H[:,:,1:,0] -= H[:,:,1:,1] - H[:,:,:-1,1]
@@ -28,7 +57,19 @@ def curl_H(H):
     return curl_H
 
 
+def prepare_curl_E(E):
+    # Execute code en cpp
+    subproc = subp() 
+    signal_and_wait(subproc)
+
+    shm_f = open(FNAME, "r+b")
+    shm_mm = mmap.mmap(shm_f.fileno(), 0)
+    shared_mtx = numpy.ndarray(shape=E.shape, dtype=numpy.float64, buffer=shm_mm)
+
+
 def timestep(E, H, courant_number, source_pos, source_val):
+    prepare_curl_E(E)
+
     E += courant_number * curl_H(H)
     E[source_pos] += source_val
     H -= courant_number * curl_E(E)
@@ -44,7 +85,10 @@ class WaveEquation:
         self.source = source
         self.index = 0
 
+
     def __call__(self, figure, field_component, slice, slice_index, initial=False):
+        print('__call__')
+
         if field_component < 3:
             field = self.E
         else:
