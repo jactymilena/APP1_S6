@@ -12,29 +12,33 @@
 
 
 // Taille de la matrice de travail (un côté)
-// static const int N = 100;
-// static const int M = 100;
-// static const int K = 100;
+static const int N = 100;
+static const int M = 100;
+static const int K = 100;
 // static const int L = 3;
 
-static const int N = 2;
-static const int M = 2;
-static const int K = 2;
-static const int L = 2;
+// static const int N = 2;
+// static const int M = 2;
+// static const int K = 2;
+// static const int L = 2;
 
 // Tampon générique à utiliser pour créer le fichier
-static const int BUFFER_SIZE = N * M * K * L * sizeof(double); // vrai
+// static const int BUFFER_SIZE = N * M * K * L * sizeof(double); // vrai
+static const int BUFFER_SIZE = N * M * K * sizeof(double); // vrai
+
 // static const int BUFFER_SIZE = 2 * 2 * 2 * 2 * sizeof(double); // test
 // static const int MATRIX_SIZE = 2;
 
 
 // std::vector<char> buffer_[BUFFER_SIZE];
 
+char buffer_[BUFFER_SIZE];
+
+
 struct slice_range {
     int start_index;
     int end_index;
 };
-
 
 
 void wait_signal()
@@ -51,9 +55,11 @@ void ack_signal()
     std::cout << "" << std::endl;
 }
 
-int get_mtx_index(int i, int j, int k, int l) 
+int get_mtx_index(int i, int j, int k) //int l) 
 {
-    return (M*N*K) * i + (M*N) * j + M* k + l;
+    // return (M*N*K) * i + (M*N) * j + M* k + l;
+    return (M * N) * i + M * j + k;
+
 }
 
 // void slice(std::vector<double>  mtx, int start_index, int end_index) 
@@ -66,65 +72,60 @@ void curl(double* mtx)
 {
     // make a copy of mtx into E, put zeros into mtx
 
-    // double* E;
 
     // make a copy of actual E matrix
-    std::vector<double> mtx_E (mtx, mtx + N * M * K * L);
-
-    // std::vector<double> mtx_E;
-    // mtx_E.assign(mtx, mtx + sizeof(mtx) / sizeof(mtx[0]));
-
-    std::cout << "E\n";    
-    // for (int i = 0; i < MATRIX_SIZE; i++) {
-    //     for (int j = 0; j < MATRIX_SIZE; j++) {
-    //         std::cout << mtx_E;
-    //     }
-    //     std::cout << std::endl;
-    // }
-
-    // for (int i = 0; i < N; i++) { PRINT mtx_E
-    //     for (int j = 0; j < M; j++) {
-    //         for(int k = 0; k < K; k++) {
-    //             for(int l = 0; l < L; l++) {
-    //                 mtx_E[get_mtx_index(i, j, k, l)];
-    //                 std::cout << mtx_E[get_mtx_index(i, j, k, l)];
-    //             }
-    //             std::cout << std::endl;
-    //         }
-    //         std::cout << std::endl;
-    //     }
-    //     std::cout << std::endl;
-    // }
+    std::vector<double> mtx_E (mtx, mtx + N * M * K);
 
 
-    // slice
+    std::cerr << "E\n";
+    std::cerr << mtx_E.size();    
+    // slice ex : [:, 1:, :, 1]
     
+
+    // std::
+    int test = 0;
+    int idx1, idx2;
+
+    // idx1 = get_mtx_index(i, j, 0, l);
+    // idx2 = get_mtx_index(i, j, K, l);
+
+    // tmp.insert(tmp.end(),  mtx_E.begin() + idx1, mtx_E.end() + idx2);
+    // test =  get_mtx_index(i, j, k, l);
+    // std::cerr << "index " << test << " ";
+    // std::cerr << mtx_E[test] << std::endl;
+
+    // slice ex : [:, 1:, :, 1]
     std::vector<double> tmp; 
 
-    int l = 1;
+    // int l = 1;
 
     for (int i = 0; i < N; i++) {
         for (int j = 1; j < M; j++) {
             for(int k = 0; k < K; k++) {                
-                tmp.push_back(mtx_E[get_mtx_index(i, j, k, l)]);
+                tmp.push_back(mtx_E[get_mtx_index(i, j, k)]);
             }
         }
     }
 
-    std::cout << "tmp "; 
+    std::cerr << "apres for\n";
+    // std::cerr << mtx_E[5999901] << std::endl;
+
+
+
+    // std::cout << "tmp "; 
     std::cout << tmp.size() << std::endl; 
 
-    for (double i: tmp)
-        std::cout << i << ' ';
+    // for (double i: tmp)
+    //     std::cout << i << ' ';
 
     std::cout << std::endl;
-         
 
+             
 
-    // slice_range ranges[4] = {{}}
-
-    // std::copy(mtx.begin(), mtx.end(), )
-
+    /* TODO: 
+        - put zeros into mtx before addition
+        - idee pour le reste : for comme celui en haut pour l'addition avec les deux tableau deja slice
+    */
     // TODO: (possibility--) multithreading with slice (call func with index and sign)
 
 
@@ -143,7 +144,6 @@ int main(int argc, char const *argv[])
 
     // Création d'un fichier "vide" (le fichier doit exister et être d'une
     // taille suffisante avant d'utiliser mmap).
-    char buffer_[BUFFER_SIZE];
     memset(buffer_, 0, BUFFER_SIZE);     // sets all values to zero
     // std::fill(buffer_->begin(), buffer_->end(), 0);
     // v2 = std::vector<int>(v1.begin() + 1, v1.end()); slicing
@@ -155,7 +155,7 @@ int main(int argc, char const *argv[])
 
     // On signale que le fichier est prêt.
     std::cerr << "CPP:  File ready." << std::endl;
-    // ack_signal(); DECOMMENTER
+    // ack_signal(); //DECOMMENTER
 
     // On ré-ouvre le fichier et le passe à mmap(...). Le fichier peut ensuite
     // être fermé sans problèmes (mmap y a toujours accès, jusqu'à munmap.)
@@ -181,15 +181,17 @@ int main(int argc, char const *argv[])
     //     std::cout << std::endl;
     // }
     // std::cout << std::endl;
-    int cpt = 0;
+
+    // A ENLEVER : FEED MATRIX
+    int cpt = 1;
     for (int i = 0; i < N; i++) {
         for (int j = 0; j < M; j++) {
             for(int k = 0; k < K; k++) {
-                for(int l = 0; l < L; l++) {
-                    mtx[get_mtx_index(i, j, k, l)] += cpt;
+                // for(int l = 0; l < L; l++) {
+                    mtx[get_mtx_index(i, j, k)] += cpt;
                     // std::cout << mtx[get_mtx_index(i, j, k, l)];
                     cpt++;
-                }
+                // }
             }
         }
         std::cout << std::endl;
@@ -210,6 +212,6 @@ int main(int argc, char const *argv[])
     //     ack_signal();
     // }
 
-    munmap(shm_mmap, BUFFER_SIZE);
+    // munmap(shm_mmap, BUFFER_SIZE);
     return 0;
 }
