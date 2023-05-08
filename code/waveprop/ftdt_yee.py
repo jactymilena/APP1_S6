@@ -20,13 +20,16 @@ def signal_and_wait(subproc):
 
 def curl_E(E):
     curl_E = numpy.zeros(E.shape)
-    print('E')
-    print(E.shape)
+    # print('E')
+    # print(E.shape)
 
     # print('E')
     # print(E)
 
     curl_E[:, :-1, :, 0] += E[:, 1:, :, 2] - E[:, :-1, :, 2]
+
+    # E[:, :, :, 2]
+
     curl_E[:, :, :-1, 0] -= E[:, :, 1:, 1] - E[:, :, :-1, 1]
 
     curl_E[:, :, :-1, 1] += E[:, :, 1:, 0] - E[:, :, :-1, 0]
@@ -42,8 +45,8 @@ def curl_E(E):
 
 def curl_H(H):
     curl_H = numpy.zeros(H.shape)
-    print('H')
-    print(H.shape)
+    # print('H')
+    # print(H.shape)
 
 
     curl_H[:,1:,:,0] += H[:,1:,:,2] - H[:,:-1,:,2]
@@ -60,20 +63,35 @@ def curl_H(H):
 def prepare_curl_E(E):
     # Execute code en cpp
     subproc = subp() 
+    print("PY:  initial signal_and_wait")
     signal_and_wait(subproc)
+    print("PY:  signal received")
+
 
     shm_f = open(FNAME, "r+b")
     shm_mm = mmap.mmap(shm_f.fileno(), 0)
+
     shared_mtx = numpy.ndarray(shape=E.shape, dtype=numpy.float64, buffer=shm_mm)
+    shared_mtx[:] = E
+    # print("PY:  Initial matrix:")
+    # print(shared_mtx)
+
+    # TODO: check number of waits
+    print("PY:  signal_and_wait")
+    signal_and_wait(subproc)
+    print("PY:  final curl signal received")
+    # print("PY:  Result:")
+    # print(shared_mtx)
 
 
-def timestep(E, H, courant_number, source_pos, source_val):
+
+def timestep(E): #H, courant_number, source_pos, source_val):
     prepare_curl_E(E)
 
-    E += courant_number * curl_H(H)
-    E[source_pos] += source_val
-    H -= courant_number * curl_E(E)
-    return E, H
+    # E += courant_number * curl_H(H)
+    # E[source_pos] += source_val
+    # H -= courant_number * curl_E(E)
+    # return E, H
 
 
 class WaveEquation:
@@ -121,7 +139,8 @@ if __name__ == "__main__":
         return ([n // 3], [n // 3], [n // 2],[0]), 0.1*numpy.sin(0.1 * index)
 
 
-    w = WaveEquation((n, n, n), 0.1, source)
-    fiddle.fiddle(w, [('field component',{'Ex':0,'Ey':1,'Ez':2, 'Hx':3,'Hy':4,'Hz':5}),('slice',{'XY':2,'YZ':0,'XZ':1}),('slice index',0,n-1,n//2,1)], update_interval=0.01)
+    # w = WaveEquation((n, n, n), 0.1, source)
+    # fiddle.fiddle(w, [('field component',{'Ex':0,'Ey':1,'Ez':2, 'Hx':3,'Hy':4,'Hz':5}),('slice',{'XY':2,'YZ':0,'XZ':1}),('slice index',0,n-1,n//2,1)], update_interval=0.01)
 
-
+    E = numpy.zeros((100, 100, 100, 3))
+    timestep(E)

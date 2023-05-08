@@ -15,7 +15,7 @@
 static const int N = 100;
 static const int M = 100;
 static const int K = 100;
-// static const int L = 3;
+static const int L = 3;
 
 // static const int N = 2;
 // static const int M = 2;
@@ -24,7 +24,7 @@ static const int K = 100;
 
 // Tampon générique à utiliser pour créer le fichier
 // static const int BUFFER_SIZE = N * M * K * L * sizeof(double); // vrai
-static const int BUFFER_SIZE = N * M * K * sizeof(double); // vrai
+static const int BUFFER_SIZE = N * M * K * L * sizeof(double); // vrai
 
 // static const int BUFFER_SIZE = 2 * 2 * 2 * 2 * sizeof(double); // test
 // static const int MATRIX_SIZE = 2;
@@ -62,66 +62,67 @@ int get_mtx_index(int i, int j, int k) //int l)
 
 }
 
-// void slice(std::vector<double>  mtx, int start_index, int end_index) 
-void slice(std::vector<double>  mtx) 
+std::vector<double> slice(std::vector<double>  mtx, slice_range ranges[3]) 
 {
+    std::vector<double> tmp;    
+    for (int i = ranges[0].start_index; i < ranges[0].end_index; i++) {
+        for (int j = ranges[1].start_index; j < ranges[1].end_index; j++) {
+            for(int k = ranges[2].start_index; k < ranges[2].end_index; k++) {                
+                tmp.push_back(mtx[get_mtx_index(i, j, k)]);
+            }
+        }
+    }
 
+    return tmp;
+}
+
+void diff_vectors(std::vector<double> &v_sum, std::vector<double> v) 
+{
+    for(int i = 0; i < N; i++) {
+        v_sum[i] -= v[i];
+    }
+}
+
+void replace_mtx(double* mtx, std::vector<double> v) 
+{
+    for(int i = 0; i < N; i++) {
+        for (int j = 0; j < M; j++) {
+            for(int k = 0; k < K; k++) {
+                mtx[get_mtx_index(i, j, k)] = v[get_mtx_index(i, j, k)];
+            }
+        }
+    }
 }
 
 void curl(double* mtx)
 {
-    // make a copy of mtx into E, put zeros into mtx
+    // TODO: make a copy of mtx into E, put zeros into mtx
 
 
     // make a copy of actual E matrix
     std::vector<double> mtx_E (mtx, mtx + N * M * K);
 
-
     std::cerr << "E\n";
-    std::cerr << mtx_E.size();    
-    // slice ex : [:, 1:, :, 1]
-    
+    // std::cerr << mtx_E.size();    
 
-    // std::
-    int test = 0;
-    int idx1, idx2;
+    slice_range ranges[3] = {{0, N}, {1, M}, {0, K}};
+    std::vector<double> m1 = slice(mtx_E, ranges);
 
-    // idx1 = get_mtx_index(i, j, 0, l);
-    // idx2 = get_mtx_index(i, j, K, l);
-
-    // tmp.insert(tmp.end(),  mtx_E.begin() + idx1, mtx_E.end() + idx2);
-    // test =  get_mtx_index(i, j, k, l);
-    // std::cerr << "index " << test << " ";
-    // std::cerr << mtx_E[test] << std::endl;
-
-    // slice ex : [:, 1:, :, 1]
-    std::vector<double> tmp; 
-
-    // int l = 1;
-
-    for (int i = 0; i < N; i++) {
-        for (int j = 1; j < M; j++) {
-            for(int k = 0; k < K; k++) {                
-                tmp.push_back(mtx_E[get_mtx_index(i, j, k)]);
-            }
-        }
-    }
-
-    std::cerr << "apres for\n";
-    // std::cerr << mtx_E[5999901] << std::endl;
-
+    slice_range ranges2[3] = {{0, N}, {0, M-1}, {0, K}};
+    std::vector<double> m2 = slice(mtx_E, ranges2);
 
 
     // std::cout << "tmp "; 
-    std::cout << tmp.size() << std::endl; 
+    // std::cout << m1.size() << std::endl; 
+    // std::cout << m2.size() << std::endl; 
+
 
     // for (double i: tmp)
     //     std::cout << i << ' ';
 
-    std::cout << std::endl;
-
-             
-
+    diff_vectors(m1, m2);
+    replace_mtx(mtx, m1);
+    
     /* TODO: 
         - put zeros into mtx before addition
         - idee pour le reste : for comme celui en haut pour l'addition avec les deux tableau deja slice
@@ -140,7 +141,7 @@ int main(int argc, char const *argv[])
         return -1;
     }
 
-    // wait_signal();
+    wait_signal();
 
     // Création d'un fichier "vide" (le fichier doit exister et être d'une
     // taille suffisante avant d'utiliser mmap).
@@ -155,7 +156,7 @@ int main(int argc, char const *argv[])
 
     // On signale que le fichier est prêt.
     std::cerr << "CPP:  File ready." << std::endl;
-    // ack_signal(); //DECOMMENTER
+    ack_signal(); //DECOMMENTER
 
     // On ré-ouvre le fichier et le passe à mmap(...). Le fichier peut ensuite
     // être fermé sans problèmes (mmap y a toujours accès, jusqu'à munmap.)
@@ -172,15 +173,6 @@ int main(int argc, char const *argv[])
     // Pointeur format double qui représente la matrice partagée:
     double* mtx = (double*)shm_mmap; // rergarder pour utiliser des vectors a la place 
 
-    // for (int i = 0; i < MATRIX_SIZE; i++) {
-    //     for (int j = 0; j < MATRIX_SIZE; j++) {
-    //         // mtx[i*MATRIX_SIZE + j] += 1.0;
-    //         std::cout << mtx[i*MATRIX_SIZE + j];
-
-    //     }
-    //     std::cout << std::endl;
-    // }
-    // std::cout << std::endl;
 
     // A ENLEVER : FEED MATRIX
     int cpt = 1;
@@ -194,10 +186,12 @@ int main(int argc, char const *argv[])
                 // }
             }
         }
-        std::cout << std::endl;
     }
-
-    curl(mtx);
+    
+    wait_signal();
+    std::cerr << "Before curl E\n";
+    // ack_signal(); //DECOMMENTER
+    // curl(mtx);
 
     // std::array<double, BUFFER_SIZE> mtx = reinterpret_cast<double>(shm_mmap);
     
