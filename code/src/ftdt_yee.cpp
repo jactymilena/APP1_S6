@@ -11,7 +11,7 @@
 #include <array>
 
 
-// Taille de la matrice de travail (un côté)
+// Taille de la matrice de travail 
 static const int N = 100;
 static const int M = 100;
 static const int K = 100;
@@ -41,6 +41,15 @@ struct slice_range {
 };
 
 
+struct field_component {
+    double x;
+    double y;
+    double z;
+
+    field_component(double x_, double y_, double z_) : x(x_), y(y_), z(z_) {}
+};
+
+
 void wait_signal()
 {
     // Attend une entrée (ligne complète avec \n) sur stdin.
@@ -55,11 +64,28 @@ void ack_signal()
     std::cout << "" << std::endl;
 }
 
-int get_mtx_index(int i, int j, int k) //int l) 
+int get_mtx_index(int i, int j, int k) 
 {
-    // return (M*N*K) * i + (M*N) * j + M* k + l;
     return (M * N) * i + M * j + k;
+}
 
+int get_mtx_index_4d(int i, int j, int k, int l)
+{
+    return (M*N*K) * i + (M*N) * j + M* k + l;
+}
+
+std::vector<field_component>  feed_components(double* mtx) {
+    std::vector<field_component> components;
+
+    for(int i = 0; i < N; i++) {
+        for (int j = 0; j < M; j++) {
+            for(int k = 0; k < K; k++) {
+                components.push_back(field_component(mtx[get_mtx_index_4d(i, j, k, 0)],  mtx[get_mtx_index_4d(i, j, k, 1)], mtx[get_mtx_index_4d(i, j, k, 2)]));
+            }
+        }
+    }
+
+    return components;
 }
 
 std::vector<double> slice(std::vector<double>  mtx, slice_range ranges[3]) 
@@ -146,9 +172,7 @@ int main(int argc, char const *argv[])
     // Création d'un fichier "vide" (le fichier doit exister et être d'une
     // taille suffisante avant d'utiliser mmap).
     memset(buffer_, 0, BUFFER_SIZE);     // sets all values to zero
-    // std::fill(buffer_->begin(), buffer_->end(), 0);
-    // v2 = std::vector<int>(v1.begin() + 1, v1.end()); slicing
-    // auto v = std::vector<int>(buffer_->begin() + 1, buffer_->end()); ;
+
 
     FILE* shm_f = fopen(argv[1], "w");              
     fwrite(buffer_, sizeof(char), BUFFER_SIZE, shm_f); // writes file with zeros
@@ -156,7 +180,7 @@ int main(int argc, char const *argv[])
 
     // On signale que le fichier est prêt.
     std::cerr << "CPP:  File ready." << std::endl;
-    ack_signal(); //DECOMMENTER
+    ack_signal(); 
 
     // On ré-ouvre le fichier et le passe à mmap(...). Le fichier peut ensuite
     // être fermé sans problèmes (mmap y a toujours accès, jusqu'à munmap.)
@@ -173,23 +197,11 @@ int main(int argc, char const *argv[])
     // Pointeur format double qui représente la matrice partagée:
     double* mtx = (double*)shm_mmap; // rergarder pour utiliser des vectors a la place 
 
-
-    // A ENLEVER : FEED MATRIX
-    int cpt = 1;
-    for (int i = 0; i < N; i++) {
-        for (int j = 0; j < M; j++) {
-            for(int k = 0; k < K; k++) {
-                // for(int l = 0; l < L; l++) {
-                    mtx[get_mtx_index(i, j, k)] += cpt;
-                    // std::cout << mtx[get_mtx_index(i, j, k, l)];
-                    cpt++;
-                // }
-            }
-        }
-    }
-    
     wait_signal();
     std::cerr << "Before curl E\n";
+
+    std::vector<field_component> mtx_E = feed_components(mtx);
+    
     // ack_signal(); //DECOMMENTER
     // curl(mtx);
 
