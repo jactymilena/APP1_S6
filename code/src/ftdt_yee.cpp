@@ -66,6 +66,16 @@ class Matrix {
     std::vector<field_component> data;
 
     public:
+    Matrix() {
+        for(int i = 0; i < N; i++) {
+            for (int j = 0; j < M; j++) {
+                for(int k = 0; k < K; k++) {
+                    data.push_back(field_component(0, 0, 0));
+                }
+            }
+        }
+    }
+
     Matrix(double* mtx) {
         for(int i = 0; i < N; i++) {
             for (int j = 0; j < M; j++) {
@@ -91,6 +101,8 @@ class Matrix {
             return data[idx].y;
         else if(l == 2)      
             return data[idx].z;
+        else
+            return data[idx].x;
     }
 
     int size() { return data.size(); }
@@ -123,31 +135,6 @@ void ack_signal()
 }
 
 
-
-// int get_mtx_index_4d(int i, int j, int k, int l)
-// {
-//     return (M*N*K) * i + (M*N) * j + M* k + l;
-// }
-
-std::vector<field_component> feed_components(double* mtx) 
-{
-    std::vector<field_component> components(1000000);
-
-    std::cerr << " start feed_components\n";
-    for(int i = 0; i < N; i++) {
-        for (int j = 0; j < M; j++) {
-            for(int k = 0; k < K; k++) {
-                components.push_back(field_component(mtx[get_mtx_index_4d(i, j, k, 0)],  mtx[get_mtx_index_4d(i, j, k, 1)], mtx[get_mtx_index_4d(i, j, k, 2)]));
-            }
-        }
-    }
-    std::cerr << " end feed_components\n";
-
-    return components;
-}
-
-
-
 std::vector<double> slice(Matrix mtx, slice_range ranges[3], int axe) 
 {
     std::vector<double> tmp;    
@@ -167,62 +154,71 @@ std::vector<double> slice(Matrix mtx, slice_range ranges[3], int axe)
     return tmp;
 }
 
-void diff_vectors(std::vector<double> &v_sum, std::vector<double> v) 
+
+
+Matrix curl(Matrix mtx_E)
 {
-    for(int i = 0; i < N; i++) {
-        v_sum[i] -= v[i];
-    }
-}
-
-void replace_mtx(double* mtx, std::vector<double> v) 
-{
-    for(int i = 0; i < N; i++) {
-        for (int j = 0; j < M; j++) {
-            for(int k = 0; k < K; k++) {
-                mtx[get_mtx_index(i, j, k)] = v[get_mtx_index(i, j, k)];
-            }
-        }
-    }
-}
-
-void curl(Matrix mtx_E)
-{
-    // TODO: make a copy of mtx into E, put zeros into mtx
-
-
     // make a copy of actual E matrix
     // std::vector<double> mtx_E (mtx, mtx + N * M * K);
 
     std::cerr << "E\n";
-    // std::cerr << mtx_E.size();    
+    Matrix res;
 
-    // slice_range ranges[3] = {{0, N}, {1, M}, {0, K}};
-    // std::vector<field_component> m1 = slice(mtx_E, ranges);
+    // curl_E[:, :-1, :, 0] += E[:, 1:, :, 2] - E[:, :-1, :, 2]
+    for (int i = 0; i < N; i++) {
+        for (int j = 0; j < M - 1; j++) {
+            for (int k = 0; k < K; k++) {
+                res(i, j, k, 0) += mtx_E(i, j + 1, k, 2) - mtx_E(i, j, k, 2);
+            }
+        }
+    }
 
-    // slice_range ranges2[3] = {{0, N}, {0, M-1}, {0, K}};
-    // std::vector<field_component> m2 = slice(mtx_E, ranges2);
+    // curl_E[:, :, :-1, 0] -= E[:, :, 1:, 1] - E[:, :, :-1, 1]
+    for (int i = 0; i < N; i++) {
+        for (int j = 0; j < M; j++) {
+            for (int k = 0; k < K - 1; k++) {
+                res(i, j, k, 0) -= mtx_E(i, j, k + 1, 1) - mtx_E(i, j, k, 1);
+            }
+        }
+    }
 
-    // replace_slice
+    // curl_E[:, :, :-1, 1] += E[:, :, 1:, 0] - E[:, :, :-1, 0]
+    for (int i = 0; i < N; i++) {
+        for (int j = 0; j < M; j++) {
+            for (int k = 0; k < K - 1; k++) {
+                res(i, j, k, 1) += mtx_E(i, j, k + 1, 0) - mtx_E(i, j, k, 0);
+            }
+        }
+    }
 
+    // curl_E[:-1, :, :, 1] -= E[1:, :, :, 2] - E[:-1, :, :, 2]
+    for (int i = 0; i < N - 1; i++) {
+        for (int j = 0; j < M; j++) {
+            for (int k = 0; k < K; k++) {
+                res(i, j, k, 1) -= mtx_E(i + 1, j, k, 2) - mtx_E(i, j, k, 2);
+            }
+        }
+    }
 
-    // std::cout << "tmp "; 
-    // std::cout << m1.size() << std::endl; 
-    // std::cout << m2.size() << std::endl; 
+    // curl_E[:-1, :, :, 2] += E[1:, :, :, 1] - E[:-1, :, :, 1]
+    for (int i = 0; i < N - 1; i++) {
+        for (int j = 0; j < M; j++) {
+            for (int k = 0; k < K; k++) {
+                res(i, j, k, 2) += mtx_E(i + 1, j, k, 1) - mtx_E(i, j, k, 1);
+            }
+        }
+    }
 
+    // curl_E[:, :-1, :, 2] -= E[:, 1:, :, 0] - E[:, :-1, :, 0]
+    for (int i = 0; i < N; i++) {
+        for (int j = 0; j < M - 1; j++) {
+            for (int k = 0; k < K; k++) {
+                res(i, j, k, 2) -= mtx_E(i, j + 1, k, 0) - mtx_E(i, j, k, 0);
+            }
+        }
+    }
 
-    // for (double i: tmp)
-    //     std::cout << i << ' ';
-
-    // diff_vectors(m1, m2);
-    // replace_mtx(mtx, m1);
-    
-    /* TODO: 
-        - put zeros into mtx before addition
-        - idee pour le reste : for comme celui en haut pour l'addition avec les deux tableau deja slice
-    */
-    // TODO: (possibility--) multithreading with slice (call func with index and sign)
-
-
+    return res;
 }
 
 int main(int argc, char const *argv[])
@@ -234,7 +230,7 @@ int main(int argc, char const *argv[])
         return -1;
     }
 
-    // wait_signal();  // DECOMMENTER
+    wait_signal();  // DECOMMENTER
 
     // Création d'un fichier "vide" (le fichier doit exister et être d'une
     // taille suffisante avant d'utiliser mmap).
@@ -247,7 +243,7 @@ int main(int argc, char const *argv[])
 
     // On signale que le fichier est prêt.
     std::cerr << "CPP:  File ready." << std::endl;
-    // ack_signal(); // DECOMMENTER
+    ack_signal(); // DECOMMENTER
 
     // On ré-ouvre le fichier et le passe à mmap(...). Le fichier peut ensuite
     // être fermé sans problèmes (mmap y a toujours accès, jusqu'à munmap.)
@@ -262,19 +258,25 @@ int main(int argc, char const *argv[])
     }
 
     // Pointeur format double qui représente la matrice partagée:
-    double* mtx = (double*)shm_mmap; // rergarder pour utiliser des vectors a la place 
+    double* mtx = (double*)shm_mmap;
 
-    // wait_signal();  // DECOMMENTER
-    std::cerr << "Before curl E\n";
+    wait_signal();  // DECOMMENTER
 
     Matrix mtx_E(mtx);
+    Matrix res_curl = curl(mtx_E);
 
-    // std::vector<field_component> mtx_E = feed_components(mtx);
+    for(int i = 0; i < N; i++) {
+        for (int j = 0; j < M; j++) {
+            for(int k = 0; k < K; k++) {
+                for(int l = 0; l < L; l++) {
+                    mtx[get_mtx_index_4d(i, j, k, l)] = res_curl(i, j, k, l);
+                }
+            }
+        }
+    }
 
-    std::cerr << mtx_E.size() << std::endl;
-    
-    // ack_signal(); //DECOMMENTER
-    // curl(mtx);
+    std::cerr << "CPP: Work done." << std::endl;
+    ack_signal();
 
     // std::array<double, BUFFER_SIZE> mtx = reinterpret_cast<double>(shm_mmap);
     
