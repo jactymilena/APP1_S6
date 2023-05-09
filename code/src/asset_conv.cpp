@@ -132,7 +132,7 @@ public:
         // using PNGHashMap = std::unordered_map<std::string, PNGDataPtr>;
         // PNGHashMap png_cache_;
         // std::unique_lock<std::mutex> lock(runner_mutex_);
-        std::unique_lock<std::mutex> lock(mutex_);
+        // std::unique_lock<std::mutex> lock(mutex_);
 
 
         const std::string&  fname_in    = task_def_.fname_in;
@@ -143,10 +143,7 @@ public:
         const size_t        image_size  = height * stride;
         const float&        scale       = float(width) / ORG_WIDTH;
 
-        std::cerr << "Running for "
-                  << fname_in 
-                  << "..." 
-                  << std::endl;
+        std::cerr << "Running for " + fname_in + "...\n";
 
         NSVGimage*          image_in        = nullptr;
         NSVGrasterizer*     rast            = nullptr;
@@ -195,23 +192,14 @@ public:
             }
             
         } catch (std::runtime_error e) {
-            std::cerr << "Exception while processing "
-                      << fname_in
-                      << ": "
-                      << e.what()
-                      << std::endl;
+            std::cerr << "Exception while processing " + fname_in + ": " + e.what() + '\n';
         }
         
         // Bring down ...
         nsvgDelete(image_in);
         nsvgDeleteRasterizer(rast);
 
-        std::cerr << std::endl 
-                  << "Done for "
-                  << fname_in 
-                  << "." 
-                  << std::endl;
-        
+        std::cerr << '\n' + "Done for " + fname_in + "." + '\n'; 
     }
 };
 
@@ -274,7 +262,7 @@ public:
 
     ~Processor()
     {
-        std::cout << "~Processor\n";
+        // std::cout << "~Processor\n";
         should_run_ = false;
         
         cond_.notify_all();
@@ -350,7 +338,7 @@ public:
         if (parse(line_org, def)) {
             std::cerr << "Queueing task '" << line_org << "'." << std::endl;
             std::lock_guard<std::mutex> lock(mutex_);
-            std::cout << "prod " << std::this_thread::get_id() << std::endl;
+            // std::cout << "prod " << std::this_thread::get_id() << std::endl;
             task_queue_.push(def);
             cond_.notify_one();
         }
@@ -385,7 +373,7 @@ private:
 
             // task_def_.fname_in; add fname_in as string key and runner return value as map value
 
-            std::cout << "Cons " << std::this_thread::get_id() << std::endl;
+            // std::cout << "Cons " << std::this_thread::get_id() << std::endl;
 
             // }
         }
@@ -399,24 +387,31 @@ int main(int argc, char** argv)
     using namespace gif643;
 
     std::ifstream file_in;
+    int nb_threads = 0;
+    std::string filename = "";
 
-    if (argc >= 2 && (strcmp(argv[1], "-") != 0)) {
-        file_in.open(argv[1]);
-        if (file_in.is_open()) {
-            std::cin.rdbuf(file_in.rdbuf());
-            std::cerr << "Using " << argv[1] << "..." << std::endl;
-        } else {
-            std::cerr   << "Error: Cannot open '"
-                        << argv[1] 
-                        << "', using stdin (press CTRL-D for EOF)." 
-                        << std::endl;
+    for(int i = 1; i < argc; i++)
+    {
+        if(argc != i + 1) {
+            if (strcmp(argv[i], "-f") == 0) {
+                filename = argv[i + 1];
+                file_in.open(filename);
+                if (file_in.is_open()) {
+                    std::cin.rdbuf(file_in.rdbuf());
+                    std::cerr << "Using " << argv[1] << "..." << std::endl;
+                } else {
+                    std::cerr   << "Error: Cannot open '" + filename + "', using stdin (press CTRL-D for EOF).\n"; 
+                }
+            
+            } else if (strcmp(argv[i], "-n") == 0) {
+                nb_threads = atoi(argv[i + 1]);
+            } else {
+                std::cerr << "Using stdin (press CTRL-D for EOF)." << std::endl;
+            }
         }
-    } else {
-        std::cerr << "Using stdin (press CTRL-D for EOF)." << std::endl;
-    }
+    }   
 
-    // TODO: change the number of threads from args.
-    Processor proc;
+    Processor proc(nb_threads);
     
     while (!std::cin.eof()) {
 
@@ -435,7 +430,5 @@ int main(int argc, char** argv)
 
     // Wait until the processor queue's has tasks to do.
     while (!proc.queueEmpty()) {
-        std::cout << "queue size " << proc.queueSize() << std::endl;
     };
-    std::cout << "end queue size " << proc.queueSize() << std::endl;
 }

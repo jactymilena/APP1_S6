@@ -16,15 +16,9 @@ def signal_and_wait(subproc):
     subproc.stdin.flush()                   # Nécessaire pour vider le tampon de sortie
     res = subproc.stdout.readline()
 
-# Notes : partir deux process cpp qui vont curl
 
 def curl_E(E):
     curl_E = numpy.zeros(E.shape)
-    # print('E')
-    # print(E.shape)
-
-    # print('E')
-    # print(E)
 
     curl_E[:, :-1, :, 0] += E[:, 1:, :, 2] - E[:, :-1, :, 2]
     curl_E[:, :, :-1, 0] -= E[:, :, 1:, 1] - E[:, :, :-1, 1]
@@ -35,16 +29,11 @@ def curl_E(E):
     curl_E[:-1, :, :, 2] += E[1:, :, :, 1] - E[:-1, :, :, 1]
     curl_E[:, :-1, :, 2] -= E[:, 1:, :, 0] - E[:, :-1, :, 0]
 
-    # print('apres curl_E')
-    # print(curl_E)
     return curl_E
 
 
 def curl_H(H):
     curl_H = numpy.zeros(H.shape)
-    # print('H')
-    # print(H.shape)
-
 
     curl_H[:,1:,:,0] += H[:,1:,:,2] - H[:,:-1,:,2]
     curl_H[:,:,1:,0] -= H[:,:,1:,1] - H[:,:,:-1,1]
@@ -57,39 +46,31 @@ def curl_H(H):
     return curl_H
 
 
-def curl_E_2(E):
+def curl_E__proc(E):
     # Execute code en cpp
     subproc = subp() 
     print("PY:  initial signal_and_wait")
     signal_and_wait(subproc)
     print("PY:  signal received")
 
-
     shm_f = open(FNAME, "r+b")
     shm_mm = mmap.mmap(shm_f.fileno(), 0)
 
     shared_mtx = numpy.ndarray(shape=E.shape, dtype=numpy.float64, buffer=shm_mm)
     shared_mtx[:] = E
-    # print("PY:  Initial matrix:")
-    # print(shared_mtx)
 
-    # TODO: check number of waits
     print("PY:  signal_and_wait")
     signal_and_wait(subproc)
     print("PY:  final curl signal received")
 
-    # print("PY:  Result:")
-    # print(shared_mtx)
     return shared_mtx
 
 
 
 def timestep(E, H, courant_number, source_pos, source_val):
-    # prepare_curl_E(E)
-
     E += courant_number * curl_H(H)
     E[source_pos] += source_val
-    H -= courant_number * curl_E_2(E)
+    H -= courant_number * curl_E__proc(E)
     return E, H
 
 
@@ -140,6 +121,3 @@ if __name__ == "__main__":
 
     w = WaveEquation((n, n, n), 0.1, source)
     fiddle.fiddle(w, [('field component',{'Ex':0,'Ey':1,'Ez':2, 'Hx':3,'Hy':4,'Hz':5}),('slice',{'XY':2,'YZ':0,'XZ':1}),('slice index',0,n-1,n//2,1)], update_interval=0.01)
-
-    # E = numpy.zeros((100, 100, 100, 3))
-    # timestep(E)
