@@ -107,15 +107,18 @@ class Matrix {
 
     int size() { return data.size(); }
 
-    void replace_slice(std::vector<field_component> tab, slice_range ranges[3]) {
-        int cpt = 0;
-        for (int i = ranges[0].start_index; i < ranges[0].end_index; i++) {
-            for (int j = ranges[1].start_index; j < ranges[1].end_index; j++) {
-                for(int k = ranges[2].start_index; k < ranges[2].end_index; k++) {     
-                    data[get_mtx_index(i, j, k)] = tab[cpt++];
+    void add_slice(Matrix mtx, int axe, slice_range our_rs[3], int rs1[4], int op = 1) {
+        for (int i = our_rs[0].start_index; i < our_rs[0].end_index; i++) {
+            for (int j = our_rs[1].start_index; j < our_rs[1].end_index; j++) {
+                for(int k = our_rs[2].start_index; k < our_rs[2].end_index; k++) {     
+                    (*this)(i, j, k, axe) += (mtx(rs1[0] + i, rs1[1] + j, rs1[2] + k, rs1[3]) - mtx(i, j, k, rs1[3])) * op;
                 }
             }
         }
+    }
+
+    void sub_slice(Matrix mtx, int axe, slice_range our_rs[3], int rs1[4]) {
+        add_slice(mtx, axe, our_rs, rs1, -1);
     }
 };
 
@@ -134,89 +137,40 @@ void ack_signal()
     std::cout << "" << std::endl;
 }
 
-
-std::vector<double> slice(Matrix mtx, slice_range ranges[3], int axe) 
-{
-    std::vector<double> tmp;    
-    for (int i = ranges[0].start_index; i < ranges[0].end_index; i++) {
-        for (int j = ranges[1].start_index; j < ranges[1].end_index; j++) {
-            for(int k = ranges[2].start_index; k < ranges[2].end_index; k++) {          
-                if(axe == 0)      
-                    tmp.push_back(mtx(i, j, k).x);
-                else if(axe == 1)      
-                    tmp.push_back(mtx(i, j, k).y);
-                else if(axe == 2)      
-                    tmp.push_back(mtx(i, j, k).z);
-            }
-        }
-    }
-
-    return tmp;
-}
-
-
-
 Matrix curl(Matrix mtx_E)
 {
-    // make a copy of actual E matrix
-    // std::vector<double> mtx_E (mtx, mtx + N * M * K);
-
-    std::cerr << "E\n";
     Matrix res;
+    slice_range rg_res[6][3] = {{{0, N}, {0, M - 1}, {0, K}},         // curl_E[:, :-1, :, 0]
+                                {{0, N}, {0, M}, {0, K - 1}},         // curl_E[:, :, :-1, 0]
+                                {{0, N}, {0, M}, {0, K - 1}},         // curl_H[:, :, -1:, 1]
+                                {{0, N - 1}, {0, M}, {0, K}},         // curl_H[-1:, :, :, 1]
+                                {{0, N - 1}, {0, M}, {0, K}},         // curl_H[-1:, :, :, 2] 
+                                {{0, N}, {0, M - 1}, {0, K}}};        // curl_H[:, -1:, :, 2]
+
+    int rs_E[6][4] = {{0, 1, 0, 2},     // E[:, 1:, :, 2]
+                      {0, 0, 1, 1},     // E[:, :, 1:, 1]
+                      {0, 0, 1, 0},     // E[:, :, 1:, 0] 
+                      {1, 0, 0, 2},     // E[1:, :, :, 2]
+                      {1, 0, 0, 1},     // E[1:, :, :, 1]
+                      {0, 1, 0, 0}};    // E[:, 1:, :, 0] 
 
     // curl_E[:, :-1, :, 0] += E[:, 1:, :, 2] - E[:, :-1, :, 2]
-    for (int i = 0; i < N; i++) {
-        for (int j = 0; j < M - 1; j++) {
-            for (int k = 0; k < K; k++) {
-                res(i, j, k, 0) += mtx_E(i, j + 1, k, 2) - mtx_E(i, j, k, 2);
-            }
-        }
-    }
+    res.add_slice(mtx_E, 0, rg_res[0], rs_E[0]);
 
     // curl_E[:, :, :-1, 0] -= E[:, :, 1:, 1] - E[:, :, :-1, 1]
-    for (int i = 0; i < N; i++) {
-        for (int j = 0; j < M; j++) {
-            for (int k = 0; k < K - 1; k++) {
-                res(i, j, k, 0) -= mtx_E(i, j, k + 1, 1) - mtx_E(i, j, k, 1);
-            }
-        }
-    }
+    res.sub_slice(mtx_E, 0, rg_res[1], rs_E[1]);
 
     // curl_E[:, :, :-1, 1] += E[:, :, 1:, 0] - E[:, :, :-1, 0]
-    for (int i = 0; i < N; i++) {
-        for (int j = 0; j < M; j++) {
-            for (int k = 0; k < K - 1; k++) {
-                res(i, j, k, 1) += mtx_E(i, j, k + 1, 0) - mtx_E(i, j, k, 0);
-            }
-        }
-    }
+    res.add_slice(mtx_E, 1, rg_res[2], rs_E[2]);
 
     // curl_E[:-1, :, :, 1] -= E[1:, :, :, 2] - E[:-1, :, :, 2]
-    for (int i = 0; i < N - 1; i++) {
-        for (int j = 0; j < M; j++) {
-            for (int k = 0; k < K; k++) {
-                res(i, j, k, 1) -= mtx_E(i + 1, j, k, 2) - mtx_E(i, j, k, 2);
-            }
-        }
-    }
+    res.sub_slice(mtx_E, 1, rg_res[3], rs_E[3]);
 
     // curl_E[:-1, :, :, 2] += E[1:, :, :, 1] - E[:-1, :, :, 1]
-    for (int i = 0; i < N - 1; i++) {
-        for (int j = 0; j < M; j++) {
-            for (int k = 0; k < K; k++) {
-                res(i, j, k, 2) += mtx_E(i + 1, j, k, 1) - mtx_E(i, j, k, 1);
-            }
-        }
-    }
+    res.add_slice(mtx_E, 2, rg_res[4], rs_E[4]);
 
     // curl_E[:, :-1, :, 2] -= E[:, 1:, :, 0] - E[:, :-1, :, 0]
-    for (int i = 0; i < N; i++) {
-        for (int j = 0; j < M - 1; j++) {
-            for (int k = 0; k < K; k++) {
-                res(i, j, k, 2) -= mtx_E(i, j + 1, k, 0) - mtx_E(i, j, k, 0);
-            }
-        }
-    }
+    res.sub_slice(mtx_E, 2, rg_res[5], rs_E[5]);
 
     return res;
 }
