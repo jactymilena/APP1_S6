@@ -387,6 +387,7 @@ int main(int argc, char **argv)
 
     // TODO: change the number of threads from args.
     Processor proc(nb_threads);
+    // Processor proc;
 
     while (!std::cin.eof())
     {
