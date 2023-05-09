@@ -14,6 +14,9 @@ add_library(stb_image   STATIC  src/stb_image.c)
 add_executable(asset_conv src/asset_conv.cpp)
 target_link_libraries(asset_conv nanosvg stb_image pthread)
 
+add_executable(asset_conv_old src/asset_conv_old.cpp)
+target_link_libraries(asset_conv_old nanosvg stb_image pthread)
+
 # Prob - executable pour partie Python
 add_executable(ftdt_yee src/ftdt_yee.cpp)
 target_link_libraries(ftdt_yee pthread)

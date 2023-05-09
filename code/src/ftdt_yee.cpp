@@ -9,6 +9,7 @@
 #include <string.h>
 #include <vector>
 #include <array>
+#include <thread>
 
 
 // Taille de la matrice de travail 
@@ -17,21 +18,9 @@ static const int M = 100;
 static const int K = 100;
 static const int L = 3;
 
-// static const int N = 2;
-// static const int M = 2;
-// static const int K = 2;
-// static const int L = 2;
-
 // Tampon générique à utiliser pour créer le fichier
 static const int BUFFER_SIZE = N * M * K * L * sizeof(double); 
 static const int DATA_SIZE = N * M * K;
-
-
-// static const int BUFFER_SIZE = 2 * 2 * 2 * 2 * sizeof(double); // test
-// static const int MATRIX_SIZE = 2;
-
-
-// std::vector<char> buffer_[BUFFER_SIZE];
 
 char buffer_[BUFFER_SIZE];
 
@@ -40,7 +29,6 @@ struct slice_range {
     int start_index;
     int end_index;
 };
-
 
 struct field_component {
     double x;
@@ -120,6 +108,40 @@ class Matrix {
     void sub_slice(Matrix mtx, int axe, slice_range our_rs[3], int rs1[4]) {
         add_slice(mtx, axe, our_rs, rs1, -1);
     }
+
+    // void run_multi_curl(Matrix mtx_E)
+    // {
+    //     Matrix res;
+    //     slice_range rg_res[6][3] = {{{0, N}, {0, M - 1}, {0, K}},         // curl_E[:, :-1, :, 0]
+    //                                 {{0, N}, {0, M}, {0, K - 1}},         // curl_E[:, :, :-1, 0]
+    //                                 {{0, N}, {0, M}, {0, K - 1}},         // curl_H[:, :, -1:, 1]
+    //                                 {{0, N - 1}, {0, M}, {0, K}},         // curl_H[-1:, :, :, 1]
+    //                                 {{0, N - 1}, {0, M}, {0, K}},         // curl_H[-1:, :, :, 2] 
+    //                                 {{0, N}, {0, M - 1}, {0, K}}};        // curl_H[:, -1:, :, 2]
+
+    //     int rs_E[6][4] = {{0, 1, 0, 2},     // E[:, 1:, :, 2]
+    //                     {0, 0, 1, 1},     // E[:, :, 1:, 1]
+    //                     {0, 0, 1, 0},     // E[:, :, 1:, 0] 
+    //                     {1, 0, 0, 2},     // E[1:, :, :, 2]
+    //                     {1, 0, 0, 1},     // E[1:, :, :, 1]
+    //                     {0, 1, 0, 0}};    // E[:, 1:, :, 0] 
+
+    //     std::thread t1(&Matrix::add_slice, this, std::ref(mtx_E), 0, std::ref(rg_res[0]), rs_E[0]);
+    //     std::thread t2(&Matrix::sub_slice, this, std::ref(mtx_E), 0, std::ref(rg_res[1]), rs_E[1]);
+    //     // std::thread t3(&Matrix::add_slice, this, std::ref(mtx_E), 1, rg_res[2], rs_E[2]);
+    //     // std::thread t4(&Matrix::sub_slice, this, std::ref(mtx_E), 1, rg_res[3], rs_E[3]);
+    //     // std::thread t5(&Matrix::add_slice, this, std::ref(mtx_E), 2, rg_res[4], rs_E[4]);
+    //     // std::thread t6(&Matrix::sub_slice, this, std::ref(mtx_E), 2, rg_res[5], rs_E[5]);
+
+
+
+    //     t1.join();
+    //     t2.join();
+    //     // t3.join();
+    //     // t4.join();
+    //     // t5.join();
+    //     // t6.join();
+    // }
 };
 
 
@@ -140,6 +162,8 @@ void ack_signal()
 Matrix curl(Matrix mtx_E)
 {
     Matrix res;
+
+    // res.run_multi_curl(mtx_E);
     slice_range rg_res[6][3] = {{{0, N}, {0, M - 1}, {0, K}},         // curl_E[:, :-1, :, 0]
                                 {{0, N}, {0, M}, {0, K - 1}},         // curl_E[:, :, :-1, 0]
                                 {{0, N}, {0, M}, {0, K - 1}},         // curl_H[:, :, -1:, 1]
@@ -177,6 +201,7 @@ Matrix curl(Matrix mtx_E)
 
 int main(int argc, char const *argv[])
 {
+    
 
     if (argc < 2)
     {
@@ -219,6 +244,7 @@ int main(int argc, char const *argv[])
     Matrix mtx_E(mtx);
     Matrix res_curl = curl(mtx_E);
 
+    // Ecriture du resultat dans la matrice partagée
     for(int i = 0; i < N; i++) {
         for (int j = 0; j < M; j++) {
             for(int k = 0; k < K; k++) {
@@ -232,19 +258,6 @@ int main(int argc, char const *argv[])
     std::cerr << "CPP: Work done." << std::endl;
     ack_signal();
 
-    // std::array<double, BUFFER_SIZE> mtx = reinterpret_cast<double>(shm_mmap);
-    
-
-    // while(true) { // DECOMMENTER
-    //     // On attend le signal du parent.
-    //     wait_signal();
-    //     std::cerr << "CPP: Will curl E" << std::endl;
-    //     curl(mtx);
-    //     // On signale que le travail est terminé.
-    //     std::cerr << "CPP: Work done." << std::endl;
-    //     ack_signal();
-    // }
-
-    // munmap(shm_mmap, BUFFER_SIZE);
+    munmap(shm_mmap, BUFFER_SIZE);
     return 0;
 }

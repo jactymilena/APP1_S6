@@ -67,7 +67,10 @@ q6_rep  = np.array([[5,6], [7,8]])
 
 
 # print(data3D[:, 1:, 1])
-print(data4D[:, 1:, :, 1])
+print(data4D[:, :, :, 0])
+print(data4D[:, :, :, 1])
+# print(data4D[:, 1:, :, 2])
+
 print(data4D.shape)
 
 

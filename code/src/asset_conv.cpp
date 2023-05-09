@@ -19,7 +19,7 @@ namespace gif643 {
 
 const size_t    BPP         = 4;    // Bytes per pixel
 const float     ORG_WIDTH   = 48.0; // Original SVG image width in px.
-const int       NUM_THREADS = 4;    // Default value, changed by argv. 
+const int       NUM_THREADS = 1;    // Default value, changed by argv. 
 
 using PNGDataVec = std::vector<char>;
 using PNGDataPtr = std::shared_ptr<PNGDataVec>;
@@ -127,7 +127,7 @@ public:
     {
     }
 
-    void operator()(PNGHashMap png_cache)
+    void operator()()//(PNGHashMap png_cache)
     {   
         // using PNGHashMap = std::unordered_map<std::string, PNGDataPtr>;
         // PNGHashMap png_cache_;
@@ -151,15 +151,15 @@ public:
         try {
             // std::unique_lock<std::mutex> lock(runner_mutex_);
 
-            if(png_cache.find(fname_in) != png_cache.end()) {
-                // Already on cache
+            // if(png_cache.find(fname_in) != png_cache.end()) {
+            //     // Already on cache
 
-                // Write it out ...
-                std::ofstream file_out(fname_out, std::ofstream::binary);
-                auto data = png_cache[fname_in];
-                file_out.write(&(data->front()), data->size());
+            //     // Write it out ...
+            //     std::ofstream file_out(fname_out, std::ofstream::binary);
+            //     auto data = png_cache[fname_in];
+            //     file_out.write(&(data->front()), data->size());
 
-            } else {
+            // } else {
                 // Read the file ...
                 image_in = nsvgParseFromFile(fname_in.c_str(), "px", 0);
                 if (image_in == nullptr) {
@@ -188,8 +188,8 @@ public:
                 std::ofstream file_out(fname_out, std::ofstream::binary);
                 auto data = writer.getData();
                 file_out.write(&(data->front()), data->size());
-                png_cache[fname_in] = data;
-            }
+                // png_cache[fname_in] = data;
+            // }
             
         } catch (std::runtime_error e) {
             std::cerr << "Exception while processing " + fname_in + ": " + e.what() + '\n';
@@ -265,7 +265,7 @@ public:
         // std::cout << "~Processor\n";
         should_run_ = false;
         
-        cond_.notify_all();
+        // cond_.notify_one();
 
         for (auto& qthread: queue_threads_) {
             qthread.join();
@@ -323,7 +323,8 @@ public:
         TaskDef def;
         if (parse(line_org, def)) {
             TaskRunner runner(def);
-            runner(png_cache_);
+            runner();
+            // runner(png_cache_);
         }
     }
 
@@ -338,7 +339,6 @@ public:
         if (parse(line_org, def)) {
             std::cerr << "Queueing task '" << line_org << "'." << std::endl;
             std::lock_guard<std::mutex> lock(mutex_);
-            // std::cout << "prod " << std::this_thread::get_id() << std::endl;
             task_queue_.push(def);
             cond_.notify_one();
         }
@@ -369,7 +369,8 @@ private:
             lock.unlock();
 
             TaskRunner runner(task_def);
-            runner(png_cache_);
+            runner();
+            // runner(png_cache_);
 
             // task_def_.fname_in; add fname_in as string key and runner return value as map value
 
