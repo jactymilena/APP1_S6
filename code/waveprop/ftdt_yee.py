@@ -49,9 +49,9 @@ def curl_H(H):
 def curl_E__proc(E):
     # Execute code en cpp
     subproc = subp() 
-    print("PY:  initial signal_and_wait")
+    print("PY:  Initial signal and wait")
     signal_and_wait(subproc)
-    print("PY:  signal received")
+    print("PY:  Signal received")
 
     shm_f = open(FNAME, "r+b")
     shm_mm = mmap.mmap(shm_f.fileno(), 0)
@@ -59,9 +59,9 @@ def curl_E__proc(E):
     shared_mtx = numpy.ndarray(shape=E.shape, dtype=numpy.float64, buffer=shm_mm)
     shared_mtx[:] = E
 
-    print("PY:  signal_and_wait")
+    print("PY:  Signal_and_wait")
     signal_and_wait(subproc)
-    print("PY:  final curl signal received")
+    print("PY:  Final curl signal received")
 
     return shared_mtx
 
@@ -85,8 +85,6 @@ class WaveEquation:
 
 
     def __call__(self, figure, field_component, slice, slice_index, initial=False):
-        print('__call__')
-
         if field_component < 3:
             field = self.E
         else:

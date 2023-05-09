@@ -108,40 +108,6 @@ class Matrix {
     void sub_slice(Matrix mtx, int axe, slice_range our_rs[3], int rs1[4]) {
         add_slice(mtx, axe, our_rs, rs1, -1);
     }
-
-    // void run_multi_curl(Matrix mtx_E)
-    // {
-    //     Matrix res;
-    //     slice_range rg_res[6][3] = {{{0, N}, {0, M - 1}, {0, K}},         // curl_E[:, :-1, :, 0]
-    //                                 {{0, N}, {0, M}, {0, K - 1}},         // curl_E[:, :, :-1, 0]
-    //                                 {{0, N}, {0, M}, {0, K - 1}},         // curl_H[:, :, -1:, 1]
-    //                                 {{0, N - 1}, {0, M}, {0, K}},         // curl_H[-1:, :, :, 1]
-    //                                 {{0, N - 1}, {0, M}, {0, K}},         // curl_H[-1:, :, :, 2] 
-    //                                 {{0, N}, {0, M - 1}, {0, K}}};        // curl_H[:, -1:, :, 2]
-
-    //     int rs_E[6][4] = {{0, 1, 0, 2},     // E[:, 1:, :, 2]
-    //                     {0, 0, 1, 1},     // E[:, :, 1:, 1]
-    //                     {0, 0, 1, 0},     // E[:, :, 1:, 0] 
-    //                     {1, 0, 0, 2},     // E[1:, :, :, 2]
-    //                     {1, 0, 0, 1},     // E[1:, :, :, 1]
-    //                     {0, 1, 0, 0}};    // E[:, 1:, :, 0] 
-
-    //     std::thread t1(&Matrix::add_slice, this, std::ref(mtx_E), 0, std::ref(rg_res[0]), rs_E[0]);
-    //     std::thread t2(&Matrix::sub_slice, this, std::ref(mtx_E), 0, std::ref(rg_res[1]), rs_E[1]);
-    //     // std::thread t3(&Matrix::add_slice, this, std::ref(mtx_E), 1, rg_res[2], rs_E[2]);
-    //     // std::thread t4(&Matrix::sub_slice, this, std::ref(mtx_E), 1, rg_res[3], rs_E[3]);
-    //     // std::thread t5(&Matrix::add_slice, this, std::ref(mtx_E), 2, rg_res[4], rs_E[4]);
-    //     // std::thread t6(&Matrix::sub_slice, this, std::ref(mtx_E), 2, rg_res[5], rs_E[5]);
-
-
-
-    //     t1.join();
-    //     t2.join();
-    //     // t3.join();
-    //     // t4.join();
-    //     // t5.join();
-    //     // t6.join();
-    // }
 };
 
 
@@ -221,7 +187,7 @@ int main(int argc, char const *argv[])
     fclose(shm_f);
 
     // On signale que le fichier est prêt.
-    std::cerr << "CPP:  File ready." << std::endl;
+    std::cerr << "CPP: File ready." << std::endl;
     ack_signal(); // DECOMMENTER
 
     // On ré-ouvre le fichier et le passe à mmap(...). Le fichier peut ensuite
@@ -255,7 +221,7 @@ int main(int argc, char const *argv[])
         }
     }
 
-    std::cerr << "CPP: Work done." << std::endl;
+    std::cerr << "CPP: Work done.\n" << std::endl;
     ack_signal();
 
     munmap(shm_mmap, BUFFER_SIZE);

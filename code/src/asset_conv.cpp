@@ -19,12 +19,14 @@ namespace gif643 {
 
 const size_t    BPP         = 4;    // Bytes per pixel
 const float     ORG_WIDTH   = 48.0; // Original SVG image width in px.
-const int       NUM_THREADS = 1;    // Default value, changed by argv. 
+const int       NUM_THREADS = 4;    // Default value, changed by argv. 
 
 using PNGDataVec = std::vector<char>;
 using PNGDataPtr = std::shared_ptr<PNGDataVec>;
 
 std::mutex      mutex_;
+std::mutex      hash_mutex_;
+
 std::condition_variable cond_;
 
 /// \brief Wraps callbacks from stbi_image_write
@@ -117,7 +119,6 @@ class TaskRunner
 {
 private:
     TaskDef task_def_;
-    std::mutex      runner_mutex_;
 
     using PNGHashMap = std::unordered_map<std::string, PNGDataPtr>;
 
@@ -127,7 +128,7 @@ public:
     {
     }
 
-    void operator()()//(PNGHashMap png_cache)
+    void operator()(PNGHashMap png_cache)
     {   
         // using PNGHashMap = std::unordered_map<std::string, PNGDataPtr>;
         // PNGHashMap png_cache_;
@@ -150,17 +151,19 @@ public:
 
         try {
             // std::unique_lock<std::mutex> lock(runner_mutex_);
+            hash_mutex_.lock();
+            if(png_cache.find(fname_in) != png_cache.end()) {
+                // Already on cache
 
-            // if(png_cache.find(fname_in) != png_cache.end()) {
-            //     // Already on cache
+                // Write it out ...
+                std::ofstream file_out(fname_out, std::ofstream::binary);
+                auto data = png_cache[fname_in];
+                hash_mutex_.unlock();
+                file_out.write(&(data->front()), data->size());
 
-            //     // Write it out ...
-            //     std::ofstream file_out(fname_out, std::ofstream::binary);
-            //     auto data = png_cache[fname_in];
-            //     file_out.write(&(data->front()), data->size());
-
-            // } else {
+            } else {
                 // Read the file ...
+                hash_mutex_.unlock();
                 image_in = nsvgParseFromFile(fname_in.c_str(), "px", 0);
                 if (image_in == nullptr) {
                     std::string msg = "Cannot parse '" + fname_in + "'.";
@@ -188,18 +191,21 @@ public:
                 std::ofstream file_out(fname_out, std::ofstream::binary);
                 auto data = writer.getData();
                 file_out.write(&(data->front()), data->size());
-                // png_cache[fname_in] = data;
-            // }
+
+                hash_mutex_.lock();
+                png_cache[fname_in] = data;
+                hash_mutex_.unlock();
+            }
             
         } catch (std::runtime_error e) {
-            std::cerr << "Exception while processing " + fname_in + ": " + e.what() + '\n';
+            std::cerr << "Exception while processing " + fname_in + ": " + e.what()+ '\n';
         }
         
         // Bring down ...
         nsvgDelete(image_in);
         nsvgDeleteRasterizer(rast);
 
-        std::cerr << '\n' + "Done for " + fname_in + "." + '\n'; 
+        std::cerr << '\n' + "Done for " + fname_in + "." + '\n';
     }
 };
 
@@ -262,10 +268,10 @@ public:
 
     ~Processor()
     {
-        // std::cout << "~Processor\n";
+        // std::cerr << "~Processor\n";
         should_run_ = false;
         
-        // cond_.notify_one();
+        cond_.notify_all();
 
         for (auto& qthread: queue_threads_) {
             qthread.join();
@@ -287,10 +293,7 @@ public:
             tokens.push_back(line);
 
             if (tokens.size() < 3) {
-                std::cerr << "Error: Wrong line format: "
-                        << line_org
-                        << " (size: " << line_org.size() << ")."
-                        << std::endl;
+                std::cerr << "Error: Wrong line format: " + line_org + " (size: " << line_org.size() << ").\n";
                 return false;
             }
 
@@ -323,8 +326,7 @@ public:
         TaskDef def;
         if (parse(line_org, def)) {
             TaskRunner runner(def);
-            runner();
-            // runner(png_cache_);
+            runner(png_cache_);
         }
     }
 
@@ -337,7 +339,7 @@ public:
         std::queue<TaskDef> queue;
         TaskDef def;
         if (parse(line_org, def)) {
-            std::cerr << "Queueing task '" << line_org << "'." << std::endl;
+            std::cerr << "Queueing task '" + line_org + "'.\n";
             std::lock_guard<std::mutex> lock(mutex_);
             task_queue_.push(def);
             cond_.notify_one();
@@ -356,7 +358,6 @@ private:
     {
         while (should_run_) {
             std::unique_lock<std::mutex> lock(mutex_);
-            std::cout << "wait to consume " << std::this_thread::get_id() << std::endl;
 
             cond_.wait(
                 lock, [this] { return !task_queue_.empty() || !should_run_; }
@@ -366,17 +367,11 @@ private:
 
             TaskDef task_def = task_queue_.front();
             task_queue_.pop();
+            
             lock.unlock();
 
             TaskRunner runner(task_def);
-            runner();
-            // runner(png_cache_);
-
-            // task_def_.fname_in; add fname_in as string key and runner return value as map value
-
-            // std::cout << "Cons " << std::this_thread::get_id() << std::endl;
-
-            // }
+            runner(png_cache_);
         }
     }
 };
@@ -388,31 +383,41 @@ int main(int argc, char** argv)
     using namespace gif643;
 
     std::ifstream file_in;
+
     int nb_threads = 0;
     std::string filename = "";
 
-    for(int i = 1; i < argc; i++)
+    for (int i = 1; i < argc; i++)
     {
-        if(argc != i + 1) {
-            if (strcmp(argv[i], "-f") == 0) {
+        if (argc != i + 1)
+        {
+            if (strcmp(argv[i], "-f") == 0)
+            {
                 filename = argv[i + 1];
                 file_in.open(filename);
-                if (file_in.is_open()) {
+                if (file_in.is_open())
+                {
                     std::cin.rdbuf(file_in.rdbuf());
                     std::cerr << "Using " << argv[1] << "..." << std::endl;
-                } else {
-                    std::cerr   << "Error: Cannot open '" + filename + "', using stdin (press CTRL-D for EOF).\n"; 
                 }
-            
-            } else if (strcmp(argv[i], "-n") == 0) {
+                else
+                {
+                    std::cerr << "Error: Cannot open '" + filename + "', using stdin (press CTRL-D for EOF).\n";
+                }
+            }
+            else if (strcmp(argv[i], "-n") == 0)
+            {
                 nb_threads = atoi(argv[i + 1]);
-            } else {
+            }
+            else
+            {
                 std::cerr << "Using stdin (press CTRL-D for EOF)." << std::endl;
             }
         }
-    }   
+    }
 
-    Processor proc(nb_threads);
+    // TODO: change the number of threads from args.
+    Processor proc;
     
     while (!std::cin.eof()) {
 
@@ -430,6 +435,5 @@ int main(int argc, char** argv)
     }
 
     // Wait until the processor queue's has tasks to do.
-    while (!proc.queueEmpty()) {
-    };
+    while (!proc.queueEmpty()) {};
 }
