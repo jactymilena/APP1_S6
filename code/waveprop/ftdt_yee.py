@@ -68,9 +68,16 @@ def curl_E__proc(E):
 
 
 def timestep(E, H, courant_number, source_pos, source_val):
+    
     E += courant_number * curl_H(H)
     E[source_pos] += source_val
-    H -= courant_number * curl_E__proc(E)
+
+    c = curl_E(E)
+    c_proc = curl_E__proc(E)
+
+    print(f"------ Matrice identique {numpy.array_equal(c, c_proc)}")
+
+    H -= courant_number * c_proc
     return E, H
 
 
